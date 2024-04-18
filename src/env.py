@@ -8,7 +8,7 @@ from dm_env import StepType, specs
 import gym
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
-
+from custom_env.cheetah_new import CheetahTarget
 
 class ExtendedTimeStep(NamedTuple):
 	step_type: Any
@@ -258,6 +258,7 @@ def make_env(cfg):
 	"""
 	domain, task = cfg.task.replace('-', '_').split('_', 1)
 	domain = dict(cup='ball_in_cup').get(domain, domain)
+	print(suite.ALL_TASKS)
 	assert (domain, task) in suite.ALL_TASKS
 	env = suite.load(domain,
 					 task,
