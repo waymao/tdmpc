@@ -40,9 +40,9 @@ mlp_dim: 512
 latent_dim: 50
 
 # wandb (insert your own)
-use_wandb: false
-wandb_project: none
-wandb_entity: none
+use_wandb: true
+wandb_project: test
+wandb_entity: yixiang_sun
 
 # misc
 seed: 1
