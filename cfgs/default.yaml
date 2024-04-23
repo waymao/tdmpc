@@ -41,8 +41,8 @@ latent_dim: 50
 
 # wandb (insert your own)
 use_wandb: true
-wandb_project: test
-wandb_entity: yixiang_sun
+wandb_project: tdmpc-finetuning
+wandb_entity: yixiangsun
 
 # misc
 seed: 1
