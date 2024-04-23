@@ -85,8 +85,8 @@ class Swimmer_swim6_dir(swimmer.Swimmer):
     physics.named.model.geom_pos['target', 'y'] = ypos
     physics.named.model.light_pos['target_light', 'x'] = xpos
     physics.named.model.light_pos['target_light', 'y'] = ypos
-    physics.named.model.swim_dir['swim_dir', 'x'] = self.swim_dir_x
-    physics.named.model.swim_dir['swim_dir', 'y'] = self.swim_dir_y
+    # physics.named.model.swim_dir['swim_dir', 'x'] = self.swim_dir_x
+    # physics.named.model.swim_dir['swim_dir', 'y'] = self.swim_dir_y
     self.after_step(physics)
 
   def get_observation(self, physics):
@@ -95,20 +95,22 @@ class Swimmer_swim6_dir(swimmer.Swimmer):
     obs['joints'] = physics.joints()
     obs['body_velocities'] = physics.body_velocities()
     obs['to_target']  = physics.nose_to_target()
-    obs['swim_dir'] = physics.named.model.swim_dir['swim_dir']
+    obs['swim_dir', 'x'] = self.swim_dir_x
+    obs['swim_dir', 'y'] = self.swim_dir_y
 
     return obs
 
   def get_reward(self, physics):
       """Returns a smooth reward."""
+      speed = np.linalg.norm(physics.body_velocities()[:3])
       move_reward = rewards.tolerance(
-                    physics.body_velocities()[0],
-                    bounds=(self._desired_speed, float('inf')),
+                    speed,
+                    bounds=(self._desired_speed, self._desired_speed + 1),
                     margin=self._desired_speed,
                     value_at_margin=0.5,
                     sigmoid='linear')
-      dir_reward = 1000.0 * np.dot(np.linalg.norm(self.body_velocities()), 
-                                 physics.named.model.swim_dir['swim_dir'])
+      dir_reward = 1000.0 * np.dot(physics.body_velocities()[:3]/speed, 
+                                  np.array([self.swim_dir_x, self.swim_dir_y, 0]))
       return (move_reward + dir_reward) / 2.0
 
 

@@ -40,7 +40,7 @@ mlp_dim: 512
 latent_dim: 50
 
 # wandb (insert your own)
-use_wandb: false
+use_wandb: true
 wandb_project: test
 wandb_entity: yixiang_sun
 
