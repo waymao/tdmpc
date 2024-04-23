@@ -106,10 +106,8 @@ class Swimmer_swim6_dir(swimmer.Swimmer):
       move_reward = rewards.tolerance(
                     speed,
                     bounds=(self._desired_speed, self._desired_speed + 1),
-                    margin=self._desired_speed,
-                    value_at_margin=0.5,
-                    sigmoid='linear')
-      dir_reward = 1000.0 * np.dot(physics.body_velocities()[:3]/speed, 
+                    margin=1)
+      dir_reward = 100.0 * np.dot(physics.body_velocities()[:3]/speed, 
                                   np.array([self.swim_dir_x, self.swim_dir_y, 0]))
       return (move_reward + dir_reward) / 2.0
 
