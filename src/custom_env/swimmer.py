@@ -70,7 +70,7 @@ class Swimmer_swim6_dir(swimmer.Swimmer):
     target_angle = np.random.uniform(-np.pi, np.pi)
     self.swim_dir_x = np.cos(target_angle)
     self.swim_dir_y = np.sin(target_angle)
-    self._desired_speed = 5
+    self._desired_speed = 8
 
   def initialize_episode(self, physics):
     """Sets the state of the environment at the start of each episode."""
@@ -105,11 +105,12 @@ class Swimmer_swim6_dir(swimmer.Swimmer):
       speed = np.linalg.norm(physics.body_velocities()[:3])
       move_reward = rewards.tolerance(
                     speed,
-                    bounds=(self._desired_speed, self._desired_speed + 1),
-                    margin=1)
-      dir_reward = 10.0 * np.dot(physics.body_velocities()[:3]/speed, 
-                                  np.array([self.swim_dir_x, self.swim_dir_y, 0]))
-      return (move_reward + dir_reward) / 2.0
+                    bounds=(self._desired_speed, self._desired_speed + 2),
+                    margin=self._desired_speed)
+      dir_reward = np.dot(physics.body_velocities()[:3]/speed, 
+                          np.array([self.swim_dir_x, self.swim_dir_y, 0]))
+      
+      return dir_reward * move_reward
 
 
 if __name__ == '__main__':
