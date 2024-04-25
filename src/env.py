@@ -8,7 +8,7 @@ from dm_env import StepType, specs
 import gym
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
-from custom_env import cheetah, swimmer
+from custom_env import cheetah, swimmer, humanoid
 suite.ALL_TASKS = suite.ALL_TASKS + suite._get_tasks('custom')
 suite.TASKS_BY_DOMAIN = suite._get_tasks_by_domain(suite.ALL_TASKS)
 

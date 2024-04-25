@@ -4,25 +4,42 @@ import os
 from dm_control import mujoco
 from dm_control.rl import control
 from dm_control.suite import base, common, humanoid
-from dm_control.suite.humanoid import _STAND_HEIGHT
+from dm_control.suite.humanoid import _WALK_SPEED, _CONTROL_TIMESTEP, _STAND_HEIGHT
 from dm_control.utils import rewards
 from dm_control.utils import io as resources
 from dm_control.suite.utils import randomizers
 import numpy as np
 
+target_geom_xml = """
+    <geom name="target" type="sphere" pos="0 5 .05" size=".1" material="target"/>
+    <light name="target_light" diffuse="1 1 1" pos="1 1 1.5"/>
+""".encode()
 
 @humanoid.SUITE.add('custom')
-def stand(time_limit=25, random=None, environment_kwargs=None):
+def walk_custom_obs(time_limit=25, random=None, environment_kwargs=None):
     """Returns the Stand task."""
-    _, assets = humanoid.get_model_and_assets()
-    model = common.read_model(os.path.dirname(__file__) + os.sep + 'humanoid.xml')
+    model, assets = humanoid.get_model_and_assets()
+    # add target to the model
+    model = model.replace(b"</worldbody>", target_geom_xml + b"</worldbody>")
     physics = Physics.from_xml_string(model, assets)
-    task = Humanoid(move_speed=0, pure_state=False, random=random)
+    task = HumanoidTargetObs(move_speed=_WALK_SPEED, pure_state=False, random=random)
     environment_kwargs = environment_kwargs or {}
-    return control.Environment(physics, task, time_limit=time_limit,
-                               **environment_kwargs)
+    return control.Environment(
+        physics, task, time_limit=time_limit, control_timestep=_CONTROL_TIMESTEP,
+        **environment_kwargs)
 
-
+@humanoid.SUITE.add('custom')
+def walk_to_goal(time_limit=25, random=None, environment_kwargs=None):
+    """Returns the Stand task."""
+    model, assets = humanoid.get_model_and_assets()
+    # add target to the model
+    model = model.replace(b"</worldbody>", target_geom_xml + b"</worldbody>")
+    physics = Physics.from_xml_string(model, assets)
+    task = HumanoidTargetTask(move_speed=_WALK_SPEED, pure_state=False, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(
+        physics, task, time_limit=time_limit, control_timestep=_CONTROL_TIMESTEP,
+        **environment_kwargs)
 
 class Physics(mujoco.Physics):
   """Physics simulation with additional features for the Walker domain."""
@@ -50,6 +67,17 @@ class Physics(mujoco.Physics):
   def joint_angles(self):
     """Returns the state without global orientation or position."""
     return self.data.qpos[7:].copy()  # Skip the 7 DoFs of the free root joint.
+  
+  def torso_to_target(self):
+    """Returns a vector from nose to target in local coordinate of the head."""
+    torso_to_target = (self.named.data.geom_xpos['target'] -
+                        self.named.data.geom_xpos['torso'])
+    torso_orientation = self.named.data.xmat['torso'].reshape(3, 3)
+    return torso_to_target.dot(torso_orientation)[:2]
+  
+  def torso_to_target_dist(self):
+    """Returns the distance from the torso to the target."""
+    return np.linalg.norm(self.torso_to_target())
 
   def extremities(self):
     """Returns end effector positions in egocentric frame."""
@@ -63,42 +91,23 @@ class Physics(mujoco.Physics):
     return np.hstack(positions)
 
 
-class Humanoid(base.Task):
-  """A humanoid task."""
-
-  def __init__(self, move_speed, pure_state, random=None):
-    """Initializes an instance of `Humanoid`.
-
-    Args:
-      move_speed: A float. If this value is zero, reward is given simply for
-        standing up. Otherwise this specifies a target horizontal velocity for
-        the walking task.
-      pure_state: A bool. Whether the observations consist of the pure MuJoCo
-        state or includes some useful features thereof.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
-    self._move_speed = move_speed
-    self._pure_state = pure_state
-    super().__init__(random=random)
-
-
+class HumanoidTargetObs(humanoid.Humanoid):
   def initialize_episode(self, physics: Physics):
-    """Sets the state of the environment at the start of each episode.
+    """Sets the state of the environment at the start of each episode."""
+    randomizers.randomize_limited_and_rotational_joints(physics, self.random)
 
-    Args:
-      physics: An instance of `Physics`.
+    # Randomize target position.
+    close_target = self.random.rand() < .2  # Probability of a close target.
+    target_box = .3 if close_target else 2
+    xpos, ypos = self.random.uniform(-target_box, target_box, size=2)
+    physics.named.model.geom_pos['target', 'x'] = xpos
+    physics.named.model.geom_pos['target', 'y'] = ypos
+    physics.named.model.light_pos['target_light', 'x'] = xpos
+    physics.named.model.light_pos['target_light', 'y'] = ypos
+    # physics.named.model.swim_dir['swim_dir', 'x'] = self.swim_dir_x
+    # physics.named.model.swim_dir['swim_dir', 'y'] = self.swim_dir_y
+    self.after_step(physics)
 
-    """
-    # Find a collision-free random initial configuration.
-    penetrating = True
-    while penetrating:
-      randomizers.randomize_limited_and_rotational_joints(physics, self.random)
-      # Check for collisions.
-      physics.after_reset()
-      penetrating = physics.data.ncon > 0
-    super().initialize_episode(physics)
 
   def get_observation(self, physics: Physics):
     """Returns either the pure state or a set of egocentric features."""
@@ -106,6 +115,7 @@ class Humanoid(base.Task):
     if self._pure_state:
       obs['position'] = physics.position()
       obs['velocity'] = physics.velocity()
+      obs['to_target'] = physics.torso_to_target()
     else:
       obs['joint_angles'] = physics.joint_angles()
       obs['head_height'] = physics.head_height()
@@ -113,7 +123,12 @@ class Humanoid(base.Task):
       obs['torso_vertical'] = physics.torso_vertical_orientation()
       obs['com_velocity'] = physics.center_of_mass_velocity()
       obs['velocity'] = physics.velocity()
+      obs['to_target'] = physics.torso_to_target()
     return obs
+
+
+class HumanoidTargetTask(HumanoidTargetObs):
+  """A humanoid task."""
 
   def get_reward(self, physics):
     """Returns a reward to the agent."""
@@ -128,10 +143,14 @@ class Humanoid(base.Task):
                                       value_at_margin=0,
                                       sigmoid='quadratic').mean()
     small_control = (4 + small_control) / 5
+
+    near_goal = rewards.tolerance(physics.torso_to_target_dist(),
+                                    bounds=(0, 0.5), margin=0.5, value_at_margin=0,
+                                    sigmoid='linear')
     if self._move_speed == 0:
       horizontal_velocity = physics.center_of_mass_velocity()[[0, 1]]
       dont_move = rewards.tolerance(horizontal_velocity, margin=2).mean()
-      return small_control * stand_reward * dont_move
+      return small_control * stand_reward * dont_move + near_goal
     else:
       com_velocity = np.linalg.norm(physics.center_of_mass_velocity()[[0, 1]])
       move = rewards.tolerance(com_velocity,
@@ -139,7 +158,5 @@ class Humanoid(base.Task):
                                margin=self._move_speed, value_at_margin=0,
                                sigmoid='linear')
       move = (5*move + 1) / 6
-      return small_control * stand_reward * move
-
-
+      return small_control * stand_reward * move + near_goal
 
