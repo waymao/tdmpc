@@ -56,7 +56,7 @@
         </body>
       </body>
     </body>
-    <geom name="target" type="sphere" pos="1 1 .05" size=".1" material="target"/>
+    <geom name="target" type="sphere" pos="0 5 .05" size=".1" material="target"/>
     <light name="target_light" diffuse="1 1 1" pos="1 1 1.5"/>
   </worldbody>
 
