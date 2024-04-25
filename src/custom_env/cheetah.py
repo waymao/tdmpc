@@ -11,7 +11,9 @@ import numpy as np
 @cheetah.SUITE.add('custom')
 def target_obs(time_limit=10, random=None, environment_kwargs=None):
     """Returns the Cheetah target task."""
-    physics = Physics.from_xml_string(*cheetah.get_model_and_assets())
+    _, assets = cheetah.get_model_and_assets()
+    model = common.read_model(os.path.dirname(__file__) + os.sep + 'cheetah.xml')
+    physics = Physics.from_xml_string(model, assets)
     task = CheetahTarget(random=random)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics, task, time_limit=time_limit,
@@ -20,15 +22,13 @@ def target_obs(time_limit=10, random=None, environment_kwargs=None):
 
 class Physics(mujoco.Physics):
     """Physics simulation with additional features for the Cheetah domain."""
-    def __init__(self, target_pos: list = [0, 0, 0.7]):
-        self.target_pos = target_pos
 
     def torso_to_target(self):
         """Returns a vector from nose to target in local coordinate of the head."""
-        nose_to_target = (self.target_pos -
+        torso_to_target = (self.named.data.geom_xpos['target'] -
                         self.named.data.geom_xpos['torso'])
-        head_orientation = self.named.data.xmat['head'].reshape(3, 3)
-        return nose_to_target.dot(head_orientation)[:2]
+        torso_orientation = self.named.data.xmat['torso'].reshape(3, 3)
+        return torso_to_target.dot(torso_orientation)[:2]
 
     def torso_to_target_dist(self):
         """Returns the distance from the nose to the target."""
@@ -42,7 +42,7 @@ class Physics(mujoco.Physics):
 class CheetahTarget(cheetah.Cheetah):
     def get_observation(self, physics):
         obs = super().get_observation(physics)
-        obs['to_target'] = physics.nose_to_target()
+        obs['to_target'] = physics.torso_to_target()
         return obs
     
     def get_reward(self, physics):
