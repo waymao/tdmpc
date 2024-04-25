@@ -11,7 +11,7 @@ from dm_control.suite.utils import randomizers
 import numpy as np
 
 target_geom_xml = """
-    <geom name="target" type="sphere" pos="0 5 .05" size=".1" material="target"/>
+    <geom name="target" type="sphere" pos="0 5 1.4" size=".1" material="target"/>
     <light name="target_light" diffuse="1 1 1" pos="1 1 1.5"/>
 """.encode()
 
@@ -98,7 +98,7 @@ class HumanoidTargetObs(humanoid.Humanoid):
 
     # Randomize target position.
     close_target = self.random.rand() < .2  # Probability of a close target.
-    target_box = .3 if close_target else 2
+    target_box = .5 if close_target else 5
     xpos, ypos = self.random.uniform(-target_box, target_box, size=2)
     physics.named.model.geom_pos['target', 'x'] = xpos
     physics.named.model.geom_pos['target', 'y'] = ypos
@@ -145,12 +145,12 @@ class HumanoidTargetTask(HumanoidTargetObs):
     small_control = (4 + small_control) / 5
 
     near_goal = rewards.tolerance(physics.torso_to_target_dist(),
-                                    bounds=(0, 0.5), margin=0.5, value_at_margin=0,
-                                    sigmoid='linear')
+                                    bounds=(0, 5), margin=5, value_at_margin=0,
+                                    sigmoid='quadratic')
     if self._move_speed == 0:
       horizontal_velocity = physics.center_of_mass_velocity()[[0, 1]]
       dont_move = rewards.tolerance(horizontal_velocity, margin=2).mean()
-      return small_control * stand_reward * dont_move + near_goal
+      return small_control * stand_reward * dont_move * near_goal
     else:
       com_velocity = np.linalg.norm(physics.center_of_mass_velocity()[[0, 1]])
       move = rewards.tolerance(com_velocity,
@@ -158,5 +158,19 @@ class HumanoidTargetTask(HumanoidTargetObs):
                                margin=self._move_speed, value_at_margin=0,
                                sigmoid='linear')
       move = (5*move + 1) / 6
-      return small_control * stand_reward * move + near_goal
+      return small_control * stand_reward * move * near_goal
 
+if __name__ == '__main__':
+    env = walk_to_goal()
+    obs = env.reset()
+    import numpy as np
+    import time
+    from matplotlib import pyplot as plt
+    rew = []
+    for i in range(15):
+        next_obs, reward, done, info = env.step(np.zeros(21))
+        img = env.physics.render()
+        rew.append(reward)
+        plt.imshow(img)
+        plt.pause(0.01)
+    print(np.array(rew).mean())
