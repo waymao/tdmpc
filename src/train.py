@@ -49,6 +49,10 @@ def train(cfg):
 	assert torch.cuda.is_available()
 	set_seed(cfg.seed)
 	work_dir = Path().cwd() / __LOGS__ / cfg.task / cfg.modality / cfg.exp_name / str(cfg.seed)
+	
+	if cfg.get('freeze_mode') in [1, 2, 3]:
+		work_dir = work_dir / f'freeze_mode_{cfg.freeze_mode}'
+ 
 	env, agent, buffer = make_env(cfg), TDMPC(cfg), ReplayBuffer(cfg)
 	
 	# Run training

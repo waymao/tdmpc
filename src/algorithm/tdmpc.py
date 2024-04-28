@@ -61,6 +61,50 @@ class TDMPC():
 		self.aug = h.RandomShiftsAug(cfg)
 		self.model.eval()
 		self.model_target.eval()
+  
+		self.init_weights_from_pretrained()
+  
+	def init_weights_from_pretrained(self):
+		"""Load pretrained model and optionally freeze the weights."""
+	
+		def _freeze_weights(model):
+			for param in model.parameters():
+				param.requires_grad = False
+  
+		if self.cfg.get('pretrained_fp') is None:
+			print('No pretrained model is loaded. Training from scratch.')
+			return
+
+		d = torch.load(self.cfg.pretrained_fp)
+		self.model._encoder.load_state_dict(d['model'], strict=False)
+		self.model._dynamics.load_state_dict(d['model'], strict=False)
+		self.model_target._encoder.load_state_dict(d['model_target'], strict=False)
+		self.model_target._dynamics.load_state_dict(d['model_target'], strict=False)
+  
+		freeze_mode = self.cfg.get('freeze_mode', -1)
+  
+		if freeze_mode == 0: # use trainable pre-trained model and policy
+			print('Using trainable pre-trained model and policy.')
+			self.model._pi.load_state_dict(d['model'], strict=False)
+			self.model_target._pi.load_state_dict(d['model_target'], strict=False)
+		elif freeze_mode == 1: # freeze pre-trained world model and fine-tune policy
+			print('Freezing pre-trained world model and fine-tuning policy.')
+			_freeze_weights(self.model._encoder)
+			_freeze_weights(self.model_target._encoder)		
+			_freeze_weights(self.model._dynamics)
+			_freeze_weights(self.model_target._dynamics)
+			self.model._pi.load_state_dict(d['model'], strict=False)
+			self.model_target._pi.load_state_dict(d['model_target'], strict=False)
+		elif freeze_mode == 2: # freeze pre-trained world model
+			print('Freezing pre-trained world model and randomly initializing policy.')
+			_freeze_weights(self.model._encoder)
+			_freeze_weights(self.model_target._encoder)
+			_freeze_weights(self.model._dynamics)
+			_freeze_weights(self.model_target._dynamics)
+		elif freeze_mode == 3: # train from scratch
+			print('Warning: Training from scratch. Pretrained model is loaded but not used.')
+		else:
+			raise ValueError('Invalid or missing freeze_mode value. Choose from [0, 1, 2, 3].')
 
 	def state_dict(self):
 		"""Retrieve state dict of TOLD model, including slow-moving target network."""
