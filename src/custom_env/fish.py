@@ -64,9 +64,15 @@ class Swim_new(fish.Swim):
     obs['velocity'] = physics.velocity()
     obs['swim_dir', 'x'] = self.swim_dir_x
     obs['swim_dir', 'y'] = self.swim_dir_y
-    obs['mouth_pos'] = physics.named.data.geom_xpos['mouth']
-    obs['mouth_mat'] = physics.named.data.geom_xmat['mouth']
     return obs
+  
+  def get_reward(self, physics):
+    """Returns a smooth reward."""
+    radii = physics.named.model.geom_size[['mouth', 'target'], 0].sum()
+    in_target = rewards.tolerance(np.linalg.norm(physics.mouth_to_target()),
+                                  bounds=(0, radii), margin=2*radii)
+    is_upright = 0.5 * (physics.upright() + 1)
+    return (7*in_target + is_upright) / 8
 
 
 class Swim_dir(fish.Swim):
@@ -75,7 +81,7 @@ class Swim_dir(fish.Swim):
   def __init__(self, random=None):
 
     super().__init__(random=random)
-    self._desired_speed = 2
+    self._desired_speed = 1.0
     target_angle = np.random.uniform(-np.pi, np.pi)
     self.swim_dir_x = np.cos(target_angle)
     self.swim_dir_y = np.sin(target_angle)
@@ -91,6 +97,9 @@ class Swim_dir(fish.Swim):
     physics.named.model.geom_pos['target', 'x'] = self.random.uniform(-.4, .4)
     physics.named.model.geom_pos['target', 'y'] = self.random.uniform(-.4, .4)
     physics.named.model.geom_pos['target', 'z'] = self.random.uniform(.1, .3)
+    target_angle = np.random.uniform(-np.pi, np.pi)
+    self.swim_dir_x = np.cos(target_angle)
+    self.swim_dir_y = np.sin(target_angle)
     self.after_step(physics)
 
   def get_observation(self, physics):
@@ -102,8 +111,6 @@ class Swim_dir(fish.Swim):
     obs['velocity'] = physics.velocity()
     obs['swim_dir', 'x'] = self.swim_dir_x
     obs['swim_dir', 'y'] = self.swim_dir_y
-    obs['mouth_pos'] = physics.named.data.geom_xpos['mouth']
-    obs['mouth_mat'] = physics.named.data.geom_xmat['mouth']
     return obs
   
   def get_reward(self, physics):

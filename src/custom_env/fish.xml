@@ -16,9 +16,6 @@
       <joint type="hinge" limited="false" range="-60 60" damping="2e-5" solreflimit=".1 1" solimplimit="0 .8 .1"/>
       <geom material="self"/>
     </default>
-    <default class="wall">
-      <geom type="box" material="self"/>
-    </default>
   </default>
 
   <worldbody>
@@ -27,11 +24,6 @@
     <camera name="tracking_y" pos="0 -.3 .2" xyaxes="1 0 0 0 0.342 0.940" fovy="60" mode="trackcom"/>
     <camera name="fixed_top" pos="0 0 5.5" fovy="10"/>
     <geom name="ground" type="plane" size=".5 .5 .1" material="grid"/>
-
-    <geom name="wall0" class="wall" pos="-.15 -.15 .1" size=".05 .05 .1"/>
-    <geom name="wall1" class="wall" pos=".15 -.15 .1" size=".05 .05 .1"/>
-    <geom name="wall2" class="wall" pos=".15 .15 .1" size=".05 .05 .1"/>
-    <geom name="wall3" class="wall" pos="-.15 .15 .1" size=".05 .05 .1"/>
 
     <geom name="target" type="sphere" pos="0 .4 .1" size=".04" material="target"/>
     <body name="torso" pos="0 0 .1" childclass="fish">
