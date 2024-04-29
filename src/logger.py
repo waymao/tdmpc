@@ -98,7 +98,7 @@ class Logger(object):
 				import wandb
 				wandb.init(project=project,
 						entity=entity,
-						name=f'{str(cfg.task)}_{cfg.seed}',
+						name=f'{str(cfg.task)}_{cfg.seed}_{cfg.exp_name}_{cfg.freeze_mode}',
 						group=self._group,
 						tags=cfg_to_group(cfg, return_list=True) + [f'seed:{cfg.seed}'],
 						dir=self._log_dir,
