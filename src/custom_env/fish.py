@@ -64,6 +64,7 @@ class Swim_new(fish.Swim):
     obs['velocity'] = physics.velocity()
     obs['swim_dir', 'x'] = self.swim_dir_x
     obs['swim_dir', 'y'] = self.swim_dir_y
+    obs['mouth'] = physics.named.data.geom_xmat['mouth']
     return obs
   
   def get_reward(self, physics):
@@ -81,7 +82,7 @@ class Swim_dir(fish.Swim):
   def __init__(self, random=None):
 
     super().__init__(random=random)
-    self._desired_speed = 1.0
+    self._desired_speed = 3.0
     target_angle = np.random.uniform(-np.pi, np.pi)
     self.swim_dir_x = np.cos(target_angle)
     self.swim_dir_y = np.sin(target_angle)
@@ -111,6 +112,7 @@ class Swim_dir(fish.Swim):
     obs['velocity'] = physics.velocity()
     obs['swim_dir', 'x'] = self.swim_dir_x
     obs['swim_dir', 'y'] = self.swim_dir_y
+    obs['mouth'] = physics.named.data.geom_xmat['mouth']
     return obs
   
   def get_reward(self, physics):
