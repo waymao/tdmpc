@@ -46,14 +46,24 @@ def swim_new(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=Non
       physics, task, control_timestep=_CONTROL_TIMESTEP, time_limit=time_limit,
       **environment_kwargs)
 
+@fish.SUITE.add('custom')
+def swim_only(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+  """Returns the Fish Swim task."""
+  physics = fish.Physics.from_xml_string(*get_model_and_assets())
+  task = Swim_only(random=random)
+  environment_kwargs = environment_kwargs or {}
+  return control.Environment(
+      physics, task, control_timestep=_CONTROL_TIMESTEP, time_limit=time_limit,
+      **environment_kwargs)
+
 class Swim_new(fish.Swim):
 
   def __init__(self, random=None):
 
     super().__init__(random=random)
-    target_angle = np.random.uniform(-np.pi, np.pi)
-    self.swim_dir_x = np.cos(target_angle)
-    self.swim_dir_y = np.sin(target_angle)
+    # target_angle = np.random.uniform(-np.pi, np.pi)
+    # self.swim_dir_x = np.cos(target_angle)
+    # self.swim_dir_y = np.sin(target_angle)
 
   def get_observation(self, physics):
     """Returns an observation of joints, target direction and velocities."""
@@ -62,9 +72,9 @@ class Swim_new(fish.Swim):
     obs['joint_angles'] = physics.joint_angles()
     obs['upright'] = physics.upright()
     obs['velocity'] = physics.velocity()
-    obs['swim_dir', 'x'] = self.swim_dir_x
-    obs['swim_dir', 'y'] = self.swim_dir_y
-    obs['mouth'] = physics.named.data.geom_xmat['mouth']
+    # obs['swim_dir', 'x'] = self.swim_dir_x
+    # obs['swim_dir', 'y'] = self.swim_dir_y
+    # obs['mouth'] = physics.named.data.geom_xmat['mouth']
     return obs
   
   def get_reward(self, physics):
@@ -131,3 +141,44 @@ class Swim_dir(fish.Swim):
     is_upright = 0.5 * (physics.upright() + 1)
       
     return (dir_reward * move_reward * 7 + is_upright) / 8.0
+  
+class Swim_only(fish.Swim):
+  """A Fish `Task` for swimming with smooth reward."""
+
+  def __init__(self, random=None):
+
+    super().__init__(random=random)
+    self._desired_speed = 3.0
+    
+  def initialize_episode(self, physics):
+    """Sets the state of the environment at the start of each episode."""
+
+    quat = self.random.randn(4)
+    physics.named.data.qpos['root'][3:7] = quat / np.linalg.norm(quat)
+    for joint in _JOINTS:
+      physics.named.data.qpos[joint] = self.random.uniform(-.2, .2)
+    # Randomize target position.
+    physics.named.model.geom_pos['target', 'x'] = self.random.uniform(-.4, .4)
+    physics.named.model.geom_pos['target', 'y'] = self.random.uniform(-.4, .4)
+    physics.named.model.geom_pos['target', 'z'] = self.random.uniform(.1, .3)
+    self.after_step(physics)
+
+  def get_observation(self, physics):
+    """Returns an observation of joints, target direction and velocities."""
+    obs = collections.OrderedDict()
+    obs['target'] = physics.mouth_to_target()
+    obs['joint_angles'] = physics.joint_angles()
+    obs['upright'] = physics.upright()
+    obs['velocity'] = physics.velocity()
+    return obs
+  
+  def get_reward(self, physics):
+    """Returns a smooth reward."""
+    speed = np.linalg.norm(physics.velocity()[:3])
+    move_reward = rewards.tolerance(
+                    speed,
+                    bounds=(self._desired_speed, self._desired_speed*2),
+                    margin=self._desired_speed)
+    is_upright = 0.5 * (physics.upright() + 1)
+      
+    return (move_reward * 7 + is_upright) / 8.0
