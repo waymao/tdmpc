@@ -29,7 +29,7 @@ def walk_custom_obs(time_limit=25, random=None, environment_kwargs=None):
         **environment_kwargs)
 
 @humanoid.SUITE.add('custom')
-def walk_to_goal(time_limit=25, random=None, environment_kwargs=None):
+def walk_in_dir(time_limit=25, random=None, environment_kwargs=None):
     """Returns the Stand task."""
     model, assets = humanoid.get_model_and_assets()
     # add target to the model
@@ -68,16 +68,22 @@ class Physics(mujoco.Physics):
     """Returns the state without global orientation or position."""
     return self.data.qpos[7:].copy()  # Skip the 7 DoFs of the free root joint.
   
-  def torso_to_target(self):
-    """Returns a vector from nose to target in local coordinate of the head."""
-    torso_to_target = (self.named.data.geom_xpos['target'] -
-                        self.named.data.geom_xpos['torso'])
-    torso_orientation = self.named.data.xmat['torso'].reshape(3, 3)
-    return torso_to_target.dot(torso_orientation)[:2]
+  # def torso_to_target(self):
+  #   """Returns a vector from nose to target in local coordinate of the head."""
+  #   torso_to_target = (self.named.data.geom_xpos['target'] -
+  #                       self.named.data.geom_xpos['torso'])
+  #   torso_orientation = self.named.data.xmat['torso'].reshape(3, 3)
+  #   return torso_to_target.dot(torso_orientation)[:2]
   
-  def torso_to_target_dist(self):
-    """Returns the distance from the torso to the target."""
-    return np.linalg.norm(self.torso_to_target())
+  # def torso_to_target_dist(self):
+  #   """Returns the distance from the torso to the target."""
+  #   return np.linalg.norm(self.torso_to_target())
+  def angle_to_direction(self, angle):
+    angle = self.named.data.xmat['torso'].reshape(3, 3).dot([np.cos(angle), np.sin(angle), 0])
+    # angle is represented as a vector in the torso frame
+    # convert it to an angle
+    angle = np.arctan2(angle[1], angle[0])
+    return angle
 
   def extremities(self):
     """Returns end effector positions in egocentric frame."""
@@ -92,20 +98,27 @@ class Physics(mujoco.Physics):
 
 
 class HumanoidTargetObs(humanoid.Humanoid):
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.dir = 0
+
   def initialize_episode(self, physics: Physics):
     """Sets the state of the environment at the start of each episode."""
     randomizers.randomize_limited_and_rotational_joints(physics, self.random)
 
     # Randomize target position.
-    close_target = self.random.rand() < .2  # Probability of a close target.
-    target_box = .5 if close_target else 5
-    xpos, ypos = self.random.uniform(-target_box, target_box, size=2)
-    physics.named.model.geom_pos['target', 'x'] = xpos
-    physics.named.model.geom_pos['target', 'y'] = ypos
-    physics.named.model.light_pos['target_light', 'x'] = xpos
-    physics.named.model.light_pos['target_light', 'y'] = ypos
+    # close_target = self.random.rand() < .2  # Probability of a close target.
+    # target_box = .5 if close_target else 5
+    # xpos, ypos = self.random.uniform(-target_box, target_box, size=2)
+    # physics.named.model.geom_pos['target', 'x'] = xpos
+    # physics.named.model.geom_pos['target', 'y'] = ypos
+    # physics.named.model.light_pos['target_light', 'x'] = xpos
+    # physics.named.model.light_pos['target_light', 'y'] = ypos
     # physics.named.model.swim_dir['swim_dir', 'x'] = self.swim_dir_x
     # physics.named.model.swim_dir['swim_dir', 'y'] = self.swim_dir_y
+
+    # walk direction
+    self.dir = 0
     self.after_step(physics)
 
 
@@ -115,7 +128,7 @@ class HumanoidTargetObs(humanoid.Humanoid):
     if self._pure_state:
       obs['position'] = physics.position()
       obs['velocity'] = physics.velocity()
-      obs['to_target'] = physics.torso_to_target()
+      obs['diff_to_dir'] = physics.angle_to_direction()
     else:
       obs['joint_angles'] = physics.joint_angles()
       obs['head_height'] = physics.head_height()
@@ -123,14 +136,14 @@ class HumanoidTargetObs(humanoid.Humanoid):
       obs['torso_vertical'] = physics.torso_vertical_orientation()
       obs['com_velocity'] = physics.center_of_mass_velocity()
       obs['velocity'] = physics.velocity()
-      obs['to_target'] = physics.torso_to_target()
+      obs['diff_to_dir'] = physics.angle_to_direction(self.dir)
     return obs
 
 
 class HumanoidTargetTask(HumanoidTargetObs):
   """A humanoid task."""
 
-  def get_reward(self, physics):
+  def get_reward(self, physics: Physics):
     """Returns a reward to the agent."""
     standing = rewards.tolerance(physics.head_height(),
                                  bounds=(_STAND_HEIGHT, float('inf')),
@@ -144,13 +157,13 @@ class HumanoidTargetTask(HumanoidTargetObs):
                                       sigmoid='quadratic').mean()
     small_control = (4 + small_control) / 5
 
-    near_goal = rewards.tolerance(physics.torso_to_target_dist(),
-                                    bounds=(0, 5), margin=5, value_at_margin=0,
+    goal_dir_rew = rewards.tolerance(physics.angle_to_direction(angle=self.dir),
+                                    bounds=(-np.pi, np.pi), margin=np.pi / 2,
                                     sigmoid='quadratic')
     if self._move_speed == 0:
       horizontal_velocity = physics.center_of_mass_velocity()[[0, 1]]
       dont_move = rewards.tolerance(horizontal_velocity, margin=2).mean()
-      return small_control * stand_reward * dont_move * near_goal
+      return small_control * stand_reward * dont_move * goal_dir_rew
     else:
       com_velocity = np.linalg.norm(physics.center_of_mass_velocity()[[0, 1]])
       move = rewards.tolerance(com_velocity,
@@ -158,17 +171,17 @@ class HumanoidTargetTask(HumanoidTargetObs):
                                margin=self._move_speed, value_at_margin=0,
                                sigmoid='linear')
       move = (5*move + 1) / 6
-      return small_control * stand_reward * move * near_goal
+      return small_control * stand_reward * move * goal_dir_rew
 
 if __name__ == '__main__':
-    env = walk_to_goal()
+    env = walk_in_dir()
     obs = env.reset()
     import numpy as np
     import time
     from matplotlib import pyplot as plt
     rew = []
-    for i in range(15):
-        next_obs, reward, done, info = env.step(np.zeros(21))
+    for i in range(100):
+        next_obs, reward, done, info = env.step(np.random.randn(21))
         img = env.physics.render()
         rew.append(reward)
         plt.imshow(img)

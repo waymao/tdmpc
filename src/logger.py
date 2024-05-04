@@ -2,6 +2,7 @@ import sys
 import os
 import datetime
 import re
+import time
 import numpy as np
 import torch
 import pandas as pd
@@ -115,8 +116,9 @@ class Logger(object):
 		return self._video
 
 	def finish(self, agent):
+		time_now = int(time.time())
 		if self._save_model:
-			fp = self._model_dir / f'model.pt'
+			fp = self._model_dir / f'model_{time_now}.pt'
 			torch.save(agent.state_dict(), fp)
 			if self._wandb:
 				artifact = self._wandb.Artifact(self._group+'-'+str(self._seed), type='model')
