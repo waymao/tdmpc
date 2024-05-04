@@ -4,7 +4,7 @@ modality: 'state'
 action_repeat: ???
 discount: 0.99
 episode_length: 1000/${action_repeat}
-train_steps: 2000000/${action_repeat}
+train_steps: 1200000/${action_repeat}
 
 # planning
 iterations: 6
