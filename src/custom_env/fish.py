@@ -47,10 +47,10 @@ def swim_new(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=Non
       **environment_kwargs)
 
 @fish.SUITE.add('custom')
-def swim_only(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+def swim_far(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   """Returns the Fish Swim task."""
   physics = fish.Physics.from_xml_string(*get_model_and_assets())
-  task = Swim_only(random=random)
+  task = Swim_far(random=random)
   environment_kwargs = environment_kwargs or {}
   return control.Environment(
       physics, task, control_timestep=_CONTROL_TIMESTEP, time_limit=time_limit,
@@ -72,6 +72,7 @@ class Swim_new(fish.Swim):
     obs['joint_angles'] = physics.joint_angles()
     obs['upright'] = physics.upright()
     obs['velocity'] = physics.velocity()
+    obs['mouth'] = physics.named.data.geom_xpos['mouth']
     # obs['swim_dir', 'x'] = self.swim_dir_x
     # obs['swim_dir', 'y'] = self.swim_dir_y
     # obs['mouth'] = physics.named.data.geom_xmat['mouth']
@@ -142,13 +143,12 @@ class Swim_dir(fish.Swim):
       
     return (dir_reward * move_reward * 7 + is_upright) / 8.0
   
-class Swim_only(fish.Swim):
+class Swim_far(fish.Swim):
   """A Fish `Task` for swimming with smooth reward."""
 
   def __init__(self, random=None):
 
     super().__init__(random=random)
-    self._desired_speed = 3.0
     
   def initialize_episode(self, physics):
     """Sets the state of the environment at the start of each episode."""
@@ -174,11 +174,9 @@ class Swim_only(fish.Swim):
   
   def get_reward(self, physics):
     """Returns a smooth reward."""
-    speed = np.linalg.norm(physics.velocity()[:3])
-    move_reward = rewards.tolerance(
-                    speed,
-                    bounds=(self._desired_speed, self._desired_speed*2),
-                    margin=self._desired_speed)
+    radii = physics.named.model.geom_size[['mouth', 'target'], 0].sum()
+    in_target = rewards.tolerance(np.linalg.norm(physics.mouth_to_target()),
+                                  bounds=(radii*20, float('inf')), margin=2*radii)
     is_upright = 0.5 * (physics.upright() + 1)
       
-    return (move_reward * 7 + is_upright) / 8.0
+    return (in_target * 7 + is_upright) / 8.0
