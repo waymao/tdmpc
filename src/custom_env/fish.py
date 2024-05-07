@@ -61,9 +61,9 @@ class Swim_new(fish.Swim):
   def __init__(self, random=None):
 
     super().__init__(random=random)
-    # target_angle = np.random.uniform(-np.pi, np.pi)
-    # self.swim_dir_x = np.cos(target_angle)
-    # self.swim_dir_y = np.sin(target_angle)
+    target_angle = np.random.uniform(-np.pi, np.pi)
+    self.swim_dir_x = np.cos(target_angle)
+    self.swim_dir_y = np.sin(target_angle)
 
   def get_observation(self, physics):
     """Returns an observation of joints, target direction and velocities."""
