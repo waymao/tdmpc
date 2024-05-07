@@ -72,9 +72,9 @@ class Swim_new(fish.Swim):
     obs['joint_angles'] = physics.joint_angles()
     obs['upright'] = physics.upright()
     obs['velocity'] = physics.velocity()
+    obs['swim_dir', 'x'] = self.swim_dir_x
+    obs['swim_dir', 'y'] = self.swim_dir_y
     obs['mouth'] = physics.named.data.geom_xpos['mouth']
-    # obs['swim_dir', 'x'] = self.swim_dir_x
-    # obs['swim_dir', 'y'] = self.swim_dir_y
     # obs['mouth'] = physics.named.data.geom_xmat['mouth']
     return obs
   
